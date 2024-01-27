@@ -1,4 +1,6 @@
 using HoneyRaesAPI.Models;
+using Microsoft.AspNetCore.Http.HttpResults;
+using System.Text.RegularExpressions;
 List<Customer> customers = new List<Customer> {
     new Customer()
     {
@@ -31,6 +33,18 @@ List<Employee> employees = new List<Employee> {
         Id = 2,
         Name = "Mary",
         Specialty = "Cashier"
+    },
+    new Employee()
+    {
+        Id = 3,
+        Name = "Billy",
+        Specialty = "Sweeper"
+    },
+    new Employee()
+    {
+        Id = 4,
+        Name = "Dolly",
+        Specialty = "Cook"
     }
 };
 List<ServiceTicket> serviceTickets = new List<ServiceTicket> {
@@ -41,7 +55,7 @@ List<ServiceTicket> serviceTickets = new List<ServiceTicket> {
         EmployeeId = 1,
         Description = "Needs more help with the clean up.",
         Emergency = false,
-        DateCompleted = DateTime.Now
+        DateCompleted = null
     },
     new ServiceTicket()
     {
@@ -50,16 +64,16 @@ List<ServiceTicket> serviceTickets = new List<ServiceTicket> {
         EmployeeId = 2,
         Description = "Needs more help with starting a payment plan.",
         Emergency = true,
-        DateCompleted = DateTime.Now
+        DateCompleted = null
     },
     new ServiceTicket()
     {
         Id = 3,
         CustomerId = 3,
-        EmployeeId = 1,
+        EmployeeId = null,
         Description = "Needs more help with a broken item.",
         Emergency = false,
-        DateCompleted = DateTime.Now
+        DateCompleted = null
     },
     new ServiceTicket()
     {
@@ -68,16 +82,16 @@ List<ServiceTicket> serviceTickets = new List<ServiceTicket> {
         EmployeeId = 1,
         Description = "Needs more help with an injury that occured.",
         Emergency = false,
-        DateCompleted = DateTime.Now
+        DateCompleted = new DateTime(2022, 12, 11)
     },
     new ServiceTicket()
     {
         Id = 5,
         CustomerId = 3,
-        EmployeeId = 2,
+        EmployeeId = null,
         Description = "Needs more help with some clarity of the service.",
-        Emergency = false,
-        DateCompleted = new DateTime()
+        Emergency = true,
+        DateCompleted = null
     }
 };
 
@@ -194,7 +208,111 @@ app.MapPost("/servicetickets/{id}/complete", (int id) =>
     ticketToComplete.DateCompleted = DateTime.Today;
     
 });
+app.MapGet("/servicetickets/emergencies", () =>
+{
+    List <ServiceTicket> filteredTickets = serviceTickets.Where(st => st.Emergency == true && st.DateCompleted == null).ToList();
+    if (filteredTickets == null)
+    {
+        return Results.NotFound();
+    }
+
+
+    return Results.Ok(filteredTickets);
+});
+
+app.MapGet("/servicetickets/unassigned", () =>
+{
+    List<ServiceTicket> unassignedTickets = serviceTickets.Where(st => st.EmployeeId == null).ToList();
+    if (unassignedTickets == null)
+    {
+        return Results.NotFound();
+    }
+    return Results.Ok(unassignedTickets);
+});
+
+app.MapGet("/servicetickets/closed", () =>
+{
+    DateTime thisDate = DateTime.Today;
+    DateTime thisDateLasttYear;
+    thisDateLasttYear = thisDate.AddYears(-1);
+
+
+
+    List <ServiceTicket> closedOneYearTickets = serviceTickets.Where(st => st.DateCompleted < thisDateLasttYear).ToList();
+    List<Customer> customerPeople = new List<Customer>();
+    foreach (ServiceTicket ticket in closedOneYearTickets)
+    {
+        Customer customerNames = customers.FirstOrDefault(c => c.Id == ticket.CustomerId);
+       customerPeople.Add(customerNames);
+    }
+   
+    return Results.Ok(customerPeople);
+});
+
+
+
+app.MapGet("/employees/available", () =>
+{
+   var assignedEmployees = serviceTickets.Where(st => st.EmployeeId.HasValue).Select(st => st.EmployeeId.Value).ToList();
+    var availableEmployees = employees.Where(e => !assignedEmployees.Contains(e.Id)).ToList();
+
+    return Results.Ok(availableEmployees);
+});
+
+app.MapGet("/customers/assigned", () =>
+{
+    List<Customer> customersList = new();
+    List<ServiceTicket> tickets = serviceTickets.Where(ticket => ticket.EmployeeId != null).ToList();
+
+    foreach (ServiceTicket ticket in tickets)
+    {
+        var cust = customers.Where(x => x.Id == ticket.CustomerId).FirstOrDefault();
+        customersList.Add(cust);
+    }
+    return Results.Ok(customersList);
+});
+
+app.MapGet("/customer/bytheemployee", (int id) =>
+{
+    var tickets = serviceTickets.Where(st => st.EmployeeId == id).ToList();
+    List<Customer> customerList = new();
+    foreach(ServiceTicket ticket in tickets)
+    {
+        Customer customer = customers.FirstOrDefault(c => c.Id == ticket.CustomerId);
+        customerList.Add(customer);
+    }
+    return Results.Ok(customerList.Distinct().ToList());
+});
+
+app.MapGet("/employees/ofthemonth", () =>
+{
+   DateTime lastMonth = DateTime.Now.AddDays(-30);
+    var thisTicket = serviceTickets.Where(st => st.DateCompleted > lastMonth && st.DateCompleted < DateTime.Now).Select(t => t.EmployeeId.Value).ToList();
+    var result = thisTicket.GroupBy(x => x).OrderByDescending(x => x.Count()).ThenBy(x => x.Key).SelectMany(x => x).ToList();
+    var answer = employees.Where(e => e.Id == result.First());
+
+    return Results.Ok(answer);
+
+});
+
+
+app.MapGet("/servicetickets/completedfirst", () =>
+{
+    List<ServiceTicket> completedTickets = serviceTickets.Where(t => t.DateCompleted != null).OrderBy(t => t.DateCompleted.Value).ToList();
+    return Results.Ok(completedTickets);
+
+});
+
+app.MapGet("/servicetickets/order", () =>
+{
+    List<ServiceTicket> incompleteTickets = serviceTickets.Where(t => t.DateCompleted == null).OrderBy(x => x.Emergency ? 0 : 1).ThenBy(s => s.EmployeeId == null ? 0 : 1).ToList();
+    return Results.Ok(incompleteTickets);
+});
 app.Run();
+
+/*Create an endpoint to return all tickets that are incomplete, in order first by whether they are emergencies,
+ * then by whether they are assigned or not (unassigned first)..*/
+
 
 
 
