@@ -19,6 +19,18 @@ List<Customer> customers = new List<Customer> {
         Id = 3,
         Name = "Sue",
         Address = "111 Belair Rd"
+    },
+     new Customer()
+    {
+        Id = 4,
+        Name = "Shari",
+        Address = "1 Ray Rd"
+    },
+      new Customer()
+    {
+        Id = 5,
+        Name = "Lambert",
+        Address = "12 Sea Rd"
     }
 };
 List<Employee> employees = new List<Employee> {
@@ -45,6 +57,24 @@ List<Employee> employees = new List<Employee> {
         Id = 4,
         Name = "Dolly",
         Specialty = "Cook"
+    },
+    new Employee()
+    {
+        Id = 5,
+        Name = "Patricia",
+        Specialty = "Plumber"
+    },
+    new Employee()
+    {
+        Id = 6,
+        Name = "Jimmy",
+        Specialty = "Encourager"
+    },
+    new Employee()
+    {
+        Id = 7,
+        Name = "Kelly",
+        Specialty = "Cleaner"
     }
 };
 List<ServiceTicket> serviceTickets = new List<ServiceTicket> {
@@ -70,7 +100,7 @@ List<ServiceTicket> serviceTickets = new List<ServiceTicket> {
     {
         Id = 3,
         CustomerId = 3,
-        EmployeeId = null,
+        EmployeeId = 2,
         Description = "Needs more help with a broken item.",
         Emergency = false,
         DateCompleted = null
@@ -121,28 +151,31 @@ app.UseHttpsRedirection();
 
 
 
-app.MapGet("/servicetickets", () =>
+app.MapGet("/api/servicetickets", () =>
 {
     return serviceTickets;
 });
 
-app.MapGet("/servicetickets/{id}", (int id) =>
+app.MapGet("/api/servicetickets/{id}", (int id) =>
 {
     ServiceTicket serviceTicket = serviceTickets.FirstOrDefault(st => st.Id == id);
     if (serviceTicket == null)
     {
         return Results.NotFound();
     }
-    serviceTicket.Employee = employees.FirstOrDefault(e => e.Id == serviceTicket.EmployeeId);
+    serviceTicket.Employee = employees.Select(x => new Employee { Id = x.Id, Name = x.Name, Specialty = x.Specialty })
+    .FirstOrDefault(e => e.Id == serviceTicket.EmployeeId);
+    serviceTicket.Customer = customers.Select(x => new Customer { Id = x.Id, Name = x.Name, Address = x.Address })
+    .FirstOrDefault(c => c.Id == serviceTicket.CustomerId);
     return Results.Ok(serviceTicket);
 });
 
-app.MapGet("/employees", () =>
+app.MapGet("/api/employees", () =>
 {
     return employees;
 });
 
-app.MapGet("/employees/{id}", (int id) =>
+app.MapGet("/api/employees/{id}", (int id) =>
 {
     Employee employee = employees.FirstOrDefault(e => e.Id == id);
     if (employee == null)
@@ -153,12 +186,12 @@ app.MapGet("/employees/{id}", (int id) =>
     return Results.Ok(employee);
 });
 
-app.MapGet("/customers", () =>
+app.MapGet("/api/customers", () =>
 {
     return customers;
 });
 
-app.MapGet("/customers/{id}", (int id) =>
+app.MapGet("/api/customers/{id}", (int id) =>
 {
     Customer customer = customers.FirstOrDefault(c => c.Id == id);
     if (customer == null)
@@ -169,14 +202,14 @@ app.MapGet("/customers/{id}", (int id) =>
     return Results.Ok(customer);
 });
 
-app.MapPost("/servicetickets", (ServiceTicket serviceTicket) =>
+app.MapPost("/api/servicetickets", (ServiceTicket serviceTicket) =>
 {
 serviceTicket.Id = serviceTickets.Max(st => st.Id) + 1;
 serviceTickets.Add(serviceTicket);
     return serviceTicket;
 });
 
-app.MapDelete("/servicetickets/{id}", (int id) =>
+app.MapDelete("/api/servicetickets/{id}", (int id) =>
 {
     ServiceTicket serviceTicket = serviceTickets.FirstOrDefault(st => st.Id == id);
     if (serviceTicket == null)
@@ -186,7 +219,7 @@ app.MapDelete("/servicetickets/{id}", (int id) =>
     serviceTickets.Remove(serviceTicket);
     return Results.Ok(serviceTicket);
 });
-app.MapPut("/servicetickets/{id}", (int id, ServiceTicket serviceTicket) =>
+app.MapPut("/api/servicetickets/{id}", (int id, ServiceTicket serviceTicket) =>
 {
     ServiceTicket ticketToUpdate = serviceTickets.FirstOrDefault(st => st.Id == id);
     int ticketIndex = serviceTickets.IndexOf(ticketToUpdate);
@@ -201,14 +234,15 @@ app.MapPut("/servicetickets/{id}", (int id, ServiceTicket serviceTicket) =>
     serviceTickets[ticketIndex] = serviceTicket;
     return Results.Ok();
 });
-app.MapPost("/servicetickets/{id}/complete", (int id) =>
+
+app.MapPut("/api/servicetickets/{id}/complete", (int id) =>
 {
     ServiceTicket ticketToComplete = serviceTickets.FirstOrDefault(st => st.Id == id);
     
     ticketToComplete.DateCompleted = DateTime.Today;
     
 });
-app.MapGet("/servicetickets/emergencies", () =>
+app.MapGet("/api/servicetickets/emergencies", () =>
 {
     List <ServiceTicket> filteredTickets = serviceTickets.Where(st => st.Emergency == true && st.DateCompleted == null).ToList();
     if (filteredTickets == null)
@@ -220,7 +254,7 @@ app.MapGet("/servicetickets/emergencies", () =>
     return Results.Ok(filteredTickets);
 });
 
-app.MapGet("/servicetickets/unassigned", () =>
+app.MapGet("/api/servicetickets/unassigned", () =>
 {
     List<ServiceTicket> unassignedTickets = serviceTickets.Where(st => st.EmployeeId == null).ToList();
     if (unassignedTickets == null)
@@ -230,7 +264,7 @@ app.MapGet("/servicetickets/unassigned", () =>
     return Results.Ok(unassignedTickets);
 });
 
-app.MapGet("/servicetickets/closed", () =>
+app.MapGet("/api/servicetickets/closed", () =>
 {
     DateTime thisDate = DateTime.Today;
     DateTime thisDateLasttYear;
@@ -251,7 +285,7 @@ app.MapGet("/servicetickets/closed", () =>
 
 
 
-app.MapGet("/employees/available", () =>
+app.MapGet("/api/employees/available", () =>
 {
    var assignedEmployees = serviceTickets.Where(st => st.EmployeeId.HasValue).Select(st => st.EmployeeId.Value).ToList();
     var availableEmployees = employees.Where(e => !assignedEmployees.Contains(e.Id)).ToList();
@@ -259,7 +293,7 @@ app.MapGet("/employees/available", () =>
     return Results.Ok(availableEmployees);
 });
 
-app.MapGet("/customers/assigned", () =>
+app.MapGet("/api/customers/assigned", () =>
 {
     List<Customer> customersList = new();
     List<ServiceTicket> tickets = serviceTickets.Where(ticket => ticket.EmployeeId != null).ToList();
@@ -271,8 +305,20 @@ app.MapGet("/customers/assigned", () =>
     }
     return Results.Ok(customersList);
 });
+app.MapPut("/api/servicetickets/{id}/assign", (int id) =>
+    {
+        ServiceTicket ticketToAssign = serviceTickets.FirstOrDefault(st => st.Id == id);
+        var assignedEmployees = serviceTickets.Where(st => st.EmployeeId.HasValue).Select(st => st.EmployeeId.Value).ToList();
+        var availableEmployees = employees.Where(e => !assignedEmployees.Contains(e.Id)).ToList();
+        Employee firstEmp = availableEmployees.FirstOrDefault();
+        ticketToAssign.Employee = availableEmployees.FirstOrDefault();
+        ticketToAssign.EmployeeId = firstEmp.Id;
+    
+       
+        return Results.Ok(ticketToAssign);
+    });
 
-app.MapGet("/customer/bytheemployee", (int id) =>
+app.MapGet("/api/customer/bytheemployee", (int id) =>
 {
     var tickets = serviceTickets.Where(st => st.EmployeeId == id).ToList();
     List<Customer> customerList = new();
@@ -284,7 +330,7 @@ app.MapGet("/customer/bytheemployee", (int id) =>
     return Results.Ok(customerList.Distinct().ToList());
 });
 
-app.MapGet("/employees/ofthemonth", () =>
+app.MapGet("/api/employees/ofthemonth", () =>
 {
    DateTime lastMonth = DateTime.Now.AddDays(-30);
     var thisTicket = serviceTickets.Where(st => st.DateCompleted > lastMonth && st.DateCompleted < DateTime.Now).Select(t => t.EmployeeId.Value).ToList();
@@ -296,22 +342,21 @@ app.MapGet("/employees/ofthemonth", () =>
 });
 
 
-app.MapGet("/servicetickets/completedfirst", () =>
+app.MapGet("/api/servicetickets/completedfirst", () =>
 {
     List<ServiceTicket> completedTickets = serviceTickets.Where(t => t.DateCompleted != null).OrderBy(t => t.DateCompleted.Value).ToList();
     return Results.Ok(completedTickets);
 
 });
 
-app.MapGet("/servicetickets/order", () =>
+app.MapGet("/api/servicetickets/order", () =>
 {
     List<ServiceTicket> incompleteTickets = serviceTickets.Where(t => t.DateCompleted == null).OrderBy(x => x.Emergency ? 0 : 1).ThenBy(s => s.EmployeeId == null ? 0 : 1).ToList();
     return Results.Ok(incompleteTickets);
 });
 app.Run();
 
-/*Create an endpoint to return all tickets that are incomplete, in order first by whether they are emergencies,
- * then by whether they are assigned or not (unassigned first)..*/
+
 
 
 
